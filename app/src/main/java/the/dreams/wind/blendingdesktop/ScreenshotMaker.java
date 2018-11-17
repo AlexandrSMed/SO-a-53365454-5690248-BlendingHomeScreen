@@ -23,6 +23,7 @@ import static android.content.Context.MEDIA_PROJECTION_SERVICE;
 
 /**
  * Before using the class actions ensure that all required permissions are set
+ * @see <a href="https://stackoverflow.com/a/34549690/5690248">Stack answer</a>
  */
 class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnImageAvailableListener {
     interface Callback {
@@ -34,7 +35,6 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
     private final ImageReader mImageReader;
     private final MediaProjection mMediaProjection;
     private final int mScreenDpi;
-    private final Point mDisplaySize;
     private VirtualDisplay mVirtualDisplay;
     private Callback mPendingCallback;
 
@@ -52,9 +52,9 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
         final WindowManager windowManager =
                 (WindowManager) appContext.getSystemService(Context.WINDOW_SERVICE);
         final Display defaultDisplay = Objects.requireNonNull(windowManager).getDefaultDisplay();
-        mDisplaySize = new Point();
-        defaultDisplay.getRealSize(mDisplaySize);
-        mImageReader = ImageReader.newInstance( mDisplaySize.x, mDisplaySize.y,
+        Point displaySize = new Point();
+        defaultDisplay.getRealSize(displaySize);
+        mImageReader = ImageReader.newInstance( displaySize.x, displaySize.y,
                 PixelFormat.RGBA_8888, 1);
         mImageReader.setOnImageAvailableListener(this, null);
 
@@ -68,11 +68,8 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
     // ========================================== //
 
     void takeScreenshot(final Callback callback) {
-        if (isVirtualDisplayReady()) {
-            mPendingCallback = callback;
-        } else {
-            // TODO: throw an error
-        }
+        prepareVirtualDisplay();
+        mPendingCallback = callback;
     }
 
     // ========================================== //
@@ -113,16 +110,15 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
     // Private
     // ========================================== //
 
-    private Boolean isVirtualDisplayReady() {
+    private void prepareVirtualDisplay() {
         if (mVirtualDisplay != null) {
-            return true;
+            return;
         }
 
         mVirtualDisplay = mMediaProjection.createVirtualDisplay(sVirtualDisplayName,
                 mImageReader.getWidth(), mImageReader.getHeight(), mScreenDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, mImageReader.getSurface(),
                 this, null);
-        return true;
     }
 
     private void releaseVirtualDisplay() {

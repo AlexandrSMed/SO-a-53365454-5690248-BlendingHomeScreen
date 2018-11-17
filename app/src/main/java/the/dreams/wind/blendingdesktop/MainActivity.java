@@ -1,6 +1,5 @@
 package the.dreams.wind.blendingdesktop;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -9,6 +8,9 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.support.annotation.NonNull;
+import android.support.annotation.StringRes;
+import android.widget.Toast;
 
 import java.util.Objects;
 
@@ -28,22 +30,26 @@ public class MainActivity extends Activity {
         }
     }
 
-    @TargetApi(Build.VERSION_CODES.M)
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         switch (requestCode) {
             case sPermissionRequestCode:
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                    // For the OS versions lower than M there should not be the case that it reached
+                    // this part of code (they don't ask for this permission)
+                    return;
+                }
                 if (Settings.canDrawOverlays(this)) {
                     requestScreenCapture();
                 } else {
-                    // TODO: show error
+                    finishWithMessage(R.string.error_permission_overlay);
                 }
             case sScreenRecordingRequestCode:
                 if (resultCode == RESULT_OK) {
                     launchOverlay(data);
                 } else {
-                    // TODO: show error
+                    finishWithMessage(R.string.error_permission_screen_capture);
                 }
         }
 
@@ -53,6 +59,11 @@ public class MainActivity extends Activity {
     // Private
     // ========================================== //
 
+    private void finishWithMessage(@StringRes int resourceId) {
+        Toast.makeText(this, resourceId, Toast.LENGTH_LONG).show();
+        finish();
+    }
+
     private void requestScreenCapture() {
         MediaProjectionManager mediaProjectionManager =
                 (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
@@ -60,7 +71,7 @@ public class MainActivity extends Activity {
         startActivityForResult(intent, sScreenRecordingRequestCode);
     }
 
-    private void launchOverlay(Intent screenCastData) {
+    private void launchOverlay(@NonNull Intent screenCastData) {
         Intent toOverlayService = new Intent(this, OverlayService.class);
         toOverlayService.putExtra(OverlayService.INTENT_KEY_SCREENCAST_DATA, screenCastData);
         startService(toOverlayService);
