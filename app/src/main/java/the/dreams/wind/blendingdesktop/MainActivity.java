@@ -15,8 +15,8 @@ import android.widget.Toast;
 import java.util.Objects;
 
 public class MainActivity extends Activity {
-    private final static int sPermissionRequestCode = 0x0001;
-    private final static int sScreenRecordingRequestCode = 0x0002;
+    private final static int PERMISSION_REQUEST_CODE = 0x0001;
+    private final static int SCREEN_RECORDING_REQUEST_CODE = 0x0002;
 
     // ========================================== //
     // Lifecycle
@@ -31,10 +31,10 @@ public class MainActivity extends Activity {
     }
 
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    protected void onActivityResult(int requestCode, int resultCode, @NonNull Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         switch (requestCode) {
-            case sPermissionRequestCode:
+            case PERMISSION_REQUEST_CODE:
                 if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
                     // For the OS versions lower than M there should not be the case that it reached
                     // this part of code (they don't ask for this permission)
@@ -46,7 +46,7 @@ public class MainActivity extends Activity {
                     finishWithMessage(R.string.error_permission_overlay);
                 }
                 break;
-            case sScreenRecordingRequestCode:
+            case SCREEN_RECORDING_REQUEST_CODE:
                 if (resultCode == RESULT_OK) {
                     launchOverlay(data);
                 } else {
@@ -69,7 +69,7 @@ public class MainActivity extends Activity {
         MediaProjectionManager mediaProjectionManager =
                 (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         Intent intent = Objects.requireNonNull(mediaProjectionManager).createScreenCaptureIntent();
-        startActivityForResult(intent, sScreenRecordingRequestCode);
+        startActivityForResult(intent, SCREEN_RECORDING_REQUEST_CODE);
     }
 
     private void launchOverlay(@NonNull Intent screenCastData) {
@@ -92,7 +92,7 @@ public class MainActivity extends Activity {
         }
         Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
                 Uri.parse("package:" + getPackageName()));
-        startActivityForResult(intent, sPermissionRequestCode);
+        startActivityForResult(intent, PERMISSION_REQUEST_CODE);
         return false;
     }
 }

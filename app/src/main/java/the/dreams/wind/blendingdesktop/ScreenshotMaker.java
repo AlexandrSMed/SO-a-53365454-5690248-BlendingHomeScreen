@@ -12,6 +12,8 @@ import android.media.Image;
 import android.media.ImageReader;
 import android.media.projection.MediaProjection;
 import android.media.projection.MediaProjectionManager;
+import android.support.annotation.NonNull;
+import android.support.annotation.Nullable;
 import android.util.DisplayMetrics;
 import android.view.Display;
 import android.view.WindowManager;
@@ -31,19 +33,22 @@ class ScreenshotMaker extends MediaProjection.Callback
         void onScreenshotTaken(Bitmap bitmap);
     }
 
-    private final static String sVirtualDisplayName = "virtual_display";
+    private final static String VIRTUAL_DISPLAY_NAME = "virtual_display";
 
     private final MediaProjection mMediaProjection;
     private final int mScreenDpi;
+    @NonNull
     private final WindowManager mWindowManager;
+    @Nullable
     private VirtualDisplay mVirtualDisplay;
+    @Nullable
     private Callback mPendingCallback;
 
     // ========================================== //
     // Lifecycle
     // ========================================== //
 
-    ScreenshotMaker(Context context, Intent screenCastData) {
+    ScreenshotMaker(Context context, @NonNull Intent screenCastData) {
         final Context appContext = context.getApplicationContext();
         final MediaProjectionManager mediaProjectionManager =
                 (MediaProjectionManager) appContext.getSystemService(MEDIA_PROJECTION_SERVICE);
@@ -51,8 +56,9 @@ class ScreenshotMaker extends MediaProjection.Callback
                 .getMediaProjection(Activity.RESULT_OK, screenCastData);
         mMediaProjection.registerCallback(this, null);
 
-        mWindowManager = (WindowManager) appContext.getSystemService(Context.WINDOW_SERVICE);
-        final Display defaultDisplay = Objects.requireNonNull(mWindowManager).getDefaultDisplay();
+        mWindowManager = (WindowManager) Objects.requireNonNull(
+                appContext.getSystemService(Context.WINDOW_SERVICE));
+        final Display defaultDisplay = mWindowManager.getDefaultDisplay();
         final DisplayMetrics displayMetrics = new DisplayMetrics();
         defaultDisplay.getMetrics(displayMetrics);
         mScreenDpi = displayMetrics.densityDpi;
@@ -87,7 +93,7 @@ class ScreenshotMaker extends MediaProjection.Callback
     // ========================================== //
 
     @Override
-    public void onImageAvailable(ImageReader reader) {
+    public void onImageAvailable(@NonNull ImageReader reader) {
         if (mPendingCallback == null) {
             return;
         }
@@ -110,22 +116,25 @@ class ScreenshotMaker extends MediaProjection.Callback
     // Private
     // ========================================== //
 
-    private void prepareVirtualDisplay(ImageReader imageReader) {
+    private void prepareVirtualDisplay(@NonNull ImageReader imageReader) {
         if (mVirtualDisplay != null) {
             mVirtualDisplay.setSurface(imageReader.getSurface());
             return;
         }
-
-        mVirtualDisplay = mMediaProjection.createVirtualDisplay(sVirtualDisplayName,
-                imageReader.getWidth(), imageReader.getHeight(), mScreenDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, imageReader.getSurface(),
-                new VirtualDisplay.Callback() {
-                    @Override
-                    public void onStopped() {
-                        super.onStopped();
-                        releaseVirtualDisplay();
-                    }
-                }, null);
+        final VirtualDisplay.Callback callback = new VirtualDisplay.Callback() {
+            @Override
+            public void onStopped() {
+                super.onStopped();
+                releaseVirtualDisplay();
+            }
+        };
+        mVirtualDisplay = mMediaProjection.createVirtualDisplay(VIRTUAL_DISPLAY_NAME,
+                                                                imageReader.getWidth(),
+                                                                imageReader.getHeight(),
+                                                                mScreenDpi,
+                                                                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
+                                                                imageReader.getSurface(),
+                                                                callback, null);
     }
 
     private ImageReader makeImageReader() {

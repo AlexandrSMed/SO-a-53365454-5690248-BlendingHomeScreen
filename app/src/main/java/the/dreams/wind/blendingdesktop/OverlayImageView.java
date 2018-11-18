@@ -5,11 +5,13 @@ import android.graphics.Canvas;
 import android.graphics.Paint;
 import android.graphics.PorterDuff;
 import android.graphics.PorterDuffXfermode;
+import android.support.annotation.NonNull;
 import android.util.AttributeSet;
 import android.widget.ImageView;
 
 class OverlayImageView extends ImageView {
-    private Paint mOverlayPaint;
+    @NonNull
+    private final Paint mOverlayPaint;
 
     // ========================================== //
     // Lifecycle
@@ -50,13 +52,14 @@ class OverlayImageView extends ImageView {
     // ========================================== //
 
     @Override
-    protected void onDraw(Canvas canvas) {
+    protected void onDraw(@NonNull Canvas canvas) {
         super.onDraw(canvas);
         canvas.drawPaint(mOverlayPaint);
     }
 
-    // For the pruposes of silencing lint warnings all custom views that has custom onTouchListener
+    // For the purposes of silencing lint warnings all custom views that has custom onTouchListener
     // should override the performClick method
+    @SuppressWarnings("EmptyMethod")
     @Override
     public boolean performClick() {
         return super.performClick();

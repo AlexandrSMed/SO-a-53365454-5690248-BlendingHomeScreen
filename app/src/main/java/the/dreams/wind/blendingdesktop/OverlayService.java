@@ -22,6 +22,7 @@ import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.IBinder;
+import android.support.annotation.NonNull;
 import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewPropertyAnimator;
@@ -36,15 +37,15 @@ import static android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH;
 
 public class OverlayService extends Service implements ScreenshotMaker.Callback,
         View.OnTouchListener {
-    final static String INTENT_ACTION_START_OVERLAY = "INTENT_ACTION_START_OVERLAY";
-    final static String INTENT_ACTION_STOP = "INTENT_ACTION_STOP";
     final static String INTENT_KEY_SCREEN_CAST_DATA = "INTENT_KEY_SCREEN_CAST_DATA";
+    final static String INTENT_ACTION_START_OVERLAY = "INTENT_ACTION_START_OVERLAY";
+    private final static String INTENT_ACTION_STOP = "INTENT_ACTION_STOP";
 
-    private final static int sNotificationId = 0xFFFF;
-    private final static String sNotificationChannelId = "overlay_notification_channel_id";
-    private final static int sRestartDelay = 1024;
-    private final static int sIdleTimeout = (int) (1024 * 1.5f);
-    private final static int sFadeInOutDuration = 512;
+    private final static int NOTIFICATION_ID = 0xFFFF;
+    private final static String NOTIFICATION_CHANNEL_ID = "overlay_notification_channel_id";
+    private final static int RESTART_DELAY = 1024;
+    private final static int IDLE_TIMEOUT = (int) (1024 * 1.5f);
+    private final static int FADE_IN_OUT_DURATION = 512;
     private final Random mRandom = new Random();
 
     private ScreenshotMaker mScreenshotMaker;
@@ -83,11 +84,11 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
                 .setLargeIcon(largeIcon)
                 .addAction(makeStopServiceAction())
                 .build();
-        startForeground(sNotificationId, mNotification);
+        startForeground(NOTIFICATION_ID, mNotification);
     }
 
     @Override
-    public int onStartCommand(Intent intent, int flags, int startId) {
+    public int onStartCommand(@NonNull Intent intent, int flags, int startId) {
         if (INTENT_ACTION_START_OVERLAY.equals(intent.getAction())) {
             addOverlay();
             Intent screenCastData = intent.getParcelableExtra(INTENT_KEY_SCREEN_CAST_DATA);
@@ -135,7 +136,7 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
     // ========================================== //
 
     @Override
-    public boolean onTouch(View view, MotionEvent event) {
+    public boolean onTouch(@NonNull View view, @NonNull MotionEvent event) {
         // Just for to silence lint warnings
         switch (event.getAction()) {
             case MotionEvent.ACTION_UP:
@@ -171,23 +172,18 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
             mIdleHandler = new Handler();
         }
         if (mIdleRunnable == null) {
-            mIdleRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    mScreenshotMaker.takeScreenshot(OverlayService.this);
-                }
-            };
+            mIdleRunnable = () -> mScreenshotMaker.takeScreenshot(OverlayService.this);
         }
         mIdleHandler.removeCallbacks(mIdleRunnable);
         if (mImageView.getAlpha() > 0) {
             fadeOverlay(false, new AnimatorListenerAdapter() {
                 @Override
                 public void onAnimationEnd(Animator animation) {
-                    mIdleHandler.postDelayed(mIdleRunnable, sIdleTimeout);
+                    mIdleHandler.postDelayed(mIdleRunnable, IDLE_TIMEOUT);
                 }
             });
         } else {
-            mIdleHandler.postDelayed(mIdleRunnable, sIdleTimeout);
+            mIdleHandler.postDelayed(mIdleRunnable, IDLE_TIMEOUT);
         }
     }
 
@@ -208,20 +204,17 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
             mRestartHandler = new Handler();
         }
         if (mRestartRunnable == null) {
-            mRestartRunnable = new Runnable() {
-                @Override
-                public void run() {
-                    Context appContext = getApplicationContext();
-                    Intent mainActivityIntent = new Intent(appContext, MainActivity.class);
-                    mainActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    appContext.startActivity(mainActivityIntent);
-                }
+            mRestartRunnable = () -> {
+                Context appContext = getApplicationContext();
+                Intent mainActivityIntent = new Intent(appContext, MainActivity.class);
+                mainActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                appContext.startActivity(mainActivityIntent);
             };
         }
 
         // There is a need to wait for a short wile until screen rotation is finished
         mRestartHandler.removeCallbacks(mRestartRunnable);
-        mRestartHandler.postDelayed(mRestartRunnable, sRestartDelay);
+        mRestartHandler.postDelayed(mRestartRunnable, RESTART_DELAY);
     }
 
     @TargetApi(Build.VERSION_CODES.O)
@@ -229,7 +222,7 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
         CharSequence name = getString(R.string.notification_channel_name);
         String description = getString(R.string.notification_channel_description);
         int importance = NotificationManager.IMPORTANCE_DEFAULT;
-        NotificationChannel channel = new NotificationChannel(sNotificationChannelId, name, importance);
+        NotificationChannel channel = new NotificationChannel(NOTIFICATION_CHANNEL_ID, name, importance);
         channel.setDescription(description);
         NotificationManager notificationManager = getSystemService(NotificationManager.class);
         Objects.requireNonNull(notificationManager).createNotificationChannel(channel);
@@ -238,7 +231,7 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
     private Notification.Builder makeNotificationBuilder() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             makeNotificationChannel();
-            return new Notification.Builder(this, sNotificationChannelId);
+            return new Notification.Builder(this, NOTIFICATION_CHANNEL_ID);
         } else {
             //noinspection deprecation
             return new Notification.Builder(this);
@@ -297,7 +290,7 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
             mImageView.setOverlayPorterDuffMode(sPorterDuffEffectiveModes[nextPorterDuffIndex]);
         }
         mOverlayAnimator = mImageView.animate().alpha(in ? 1.0f : 0f)
-                .setDuration(sFadeInOutDuration)
+                .setDuration(FADE_IN_OUT_DURATION)
                 .setInterpolator(new AccelerateDecelerateInterpolator())
                 .setListener(animatorListener);
     }
