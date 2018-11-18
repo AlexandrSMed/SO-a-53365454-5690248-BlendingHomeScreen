@@ -49,10 +49,16 @@ class OverlayImageView extends ImageView {
     // View
     // ========================================== //
 
-
     @Override
     protected void onDraw(Canvas canvas) {
         super.onDraw(canvas);
         canvas.drawPaint(mOverlayPaint);
+    }
+
+    // For the pruposes of silencing lint warnings all custom views that has custom onTouchListener
+    // should override the performClick method
+    @Override
+    public boolean performClick() {
+        return super.performClick();
     }
 }

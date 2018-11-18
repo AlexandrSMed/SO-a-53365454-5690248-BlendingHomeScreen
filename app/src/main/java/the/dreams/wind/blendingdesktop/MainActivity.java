@@ -75,7 +75,7 @@ public class MainActivity extends Activity {
     private void launchOverlay(@NonNull Intent screenCastData) {
         Intent toOverlayService = new Intent(this, OverlayService.class);
         toOverlayService.setAction(OverlayService.INTENT_ACTION_START_OVERLAY);
-        toOverlayService.putExtra(OverlayService.INTENT_KEY_SCREENCAST_DATA, screenCastData);
+        toOverlayService.putExtra(OverlayService.INTENT_KEY_SCREEN_CAST_DATA, screenCastData);
         startService(toOverlayService);
         finish();
     }
