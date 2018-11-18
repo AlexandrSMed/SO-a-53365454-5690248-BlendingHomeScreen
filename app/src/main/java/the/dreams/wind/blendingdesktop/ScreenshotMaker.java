@@ -141,7 +141,7 @@ class ScreenshotMaker extends MediaProjection.Callback
         final Display defaultDisplay = mWindowManager.getDefaultDisplay();
         Point displaySize = new Point();
         defaultDisplay.getRealSize(displaySize);
-        final ImageReader imageReader = ImageReader.newInstance( displaySize.x, displaySize.y,
+        final ImageReader imageReader = ImageReader.newInstance(displaySize.x, displaySize.y,
                 PixelFormat.RGBA_8888, 1);
         imageReader.setOnImageAvailableListener(this, null);
         return imageReader;
