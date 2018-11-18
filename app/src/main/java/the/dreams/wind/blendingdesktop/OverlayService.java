@@ -15,24 +15,32 @@ import android.graphics.PorterDuff;
 import android.graphics.Rect;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
+import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.WindowManager;
 import android.widget.ImageView;
 
 import java.util.Objects;
 
+import static android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH;
+
 public class OverlayService extends Service implements ScreenshotMaker.Callback {
-    public final static String INTENT_KEY_SCREENCAST_DATA = "INTENT_KEY_SCREENCAST_DATA";
+    final static String INTENT_ACTION_START_OVERLAY = "INTENT_ACTION_START_OVERLAY";
+    final static String INTENT_KEY_SCREENCAST_DATA = "INTENT_KEY_SCREENCAST_DATA";
 
     private final static int sNotificationId = 0xFFFF;
     private final static String sNotificationChannelId = "overlay_notification_channel_id";
+    private final static int sRestartDelay = 1024;
 
     private ScreenshotMaker mScreenshotMaker;
     private OverlayImageView mImageView;
     private WindowManager mWindowManager;
     private WindowManager.LayoutParams mOverlayLayoutParams;
+    private Handler mRestartHandler;
+    private Runnable mRestartRunnable;
 
     // ========================================== //
     // Lifecycle
@@ -45,6 +53,16 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback 
     @Override
     public void onCreate() {
         super.onCreate();
+        mRestartHandler = new Handler();
+        mRestartRunnable = new Runnable() {
+            @Override
+            public void run() {
+                Context appContext = getApplicationContext();
+                Intent mainActivityIntent = new Intent(appContext, MainActivity.class);
+                mainActivityIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                appContext.startActivity(mainActivityIntent);
+            }
+        };
         mWindowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
         mOverlayLayoutParams = overlayLayoutParams();
         MediaProjectionManager projectionManager =
@@ -54,14 +72,16 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback 
                 .setTicker(getText(R.string.notification_ticker))
                 .build();
         startForeground(sNotificationId, mNotification);
-        addOverlay();
     }
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Intent screenCastData = intent.getParcelableExtra(INTENT_KEY_SCREENCAST_DATA);
-        mScreenshotMaker = new ScreenshotMaker(this, screenCastData);
-        mScreenshotMaker.takeScreenshot(this);
+        if (INTENT_ACTION_START_OVERLAY.equals(intent.getAction())) {
+            addOverlay();
+            Intent screenCastData = intent.getParcelableExtra(INTENT_KEY_SCREENCAST_DATA);
+            mScreenshotMaker = new ScreenshotMaker(this, screenCastData);
+            mScreenshotMaker.takeScreenshot(this);
+        }
         return super.onStartCommand(intent, flags, startId);
     }
 
@@ -73,14 +93,16 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
-        Log.d("ImageView", "orientation changed");
-//        mWindowManager.removeView(mImageView);
-//        mWindowManager.addView(mImageView, mOverlayLayoutParams);
-        mImageView.invalidate();
-        mImageView.requestLayout();
-        mScreenshotMaker.takeScreenshot(this);
+        // When device is rotating too fast, mImageView may not manage to attach on time.
+        if (mImageView.isAttachedToWindow()) {
+            mWindowManager.removeView(mImageView);
+        }
+        mScreenshotMaker.release();
+        // There is a need to wait for a short wile until screen rotation is finished
+        mRestartHandler.removeCallbacks(mRestartRunnable);
+        mRestartHandler.postDelayed(mRestartRunnable, sRestartDelay);
     }
-    
+
     // ========================================== //
     // ScreenshotMaker.Callback
     // ========================================== //
@@ -126,7 +148,7 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback 
             overlayFlag = WindowManager.LayoutParams.TYPE_SYSTEM_ALERT;
         }
         final int flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE |
-                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE;
+                WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE | FLAG_WATCH_OUTSIDE_TOUCH;
         return new WindowManager.LayoutParams(
                 WindowManager.LayoutParams.MATCH_PARENT,
                 WindowManager.LayoutParams.MATCH_PARENT,
@@ -141,19 +163,26 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback 
         mImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
         mImageView.setPadding(0,0,0,0);
         mImageView.setOverlayColor(0xAAF5961B);
+        mImageView.setOnTouchListener(new View.OnTouchListener() {
+            @Override
+            public boolean onTouch(View v, MotionEvent event) {
+                Log.d("ImageView", event.toString());
+                return false;
+            }
+        });
         mImageView.setVisibility(View.INVISIBLE);
         mWindowManager.addView(mImageView, mOverlayLayoutParams);
     }
 
     private void showDesktopScreenshot(Bitmap screenshot, ImageView imageView) {
         // The goal is to position the bitmap such it is attached to top of the screen display, by
-        // moving it under status bar
+        // moving it under status bar and/or navigation buttons bar
         Rect displayFrame = new Rect();
         imageView.getWindowVisibleDisplayFrame(displayFrame);
         final int statusBarHeight = displayFrame.top;
         imageView.setScaleType(ImageView.ScaleType.MATRIX);
         Matrix imageMatrix = new Matrix();
-        imageMatrix.setTranslate(0, -statusBarHeight);
+        imageMatrix.setTranslate(-displayFrame.left, -statusBarHeight);
         imageView.setImageMatrix(imageMatrix);
         imageView.setImageBitmap(screenshot);
     }

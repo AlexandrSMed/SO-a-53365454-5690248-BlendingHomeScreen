@@ -7,7 +7,7 @@ import android.support.test.runner.AndroidJUnit4;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Instrumented test, which will execute on an Android device.
@@ -23,4 +23,8 @@ public class ExampleInstrumentedTest {
 
         assertEquals("the.dreams.wind.blendingdesktop", appContext.getPackageName());
     }
+
+    // TODO: cover orientation change 1) translation matrix matches paddings
+    // 2) only one overlay view at a time
+    // 3) overlay is on the screen after screen rotation
 }

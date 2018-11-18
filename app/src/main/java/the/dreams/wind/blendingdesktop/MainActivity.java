@@ -45,14 +45,15 @@ public class MainActivity extends Activity {
                 } else {
                     finishWithMessage(R.string.error_permission_overlay);
                 }
+                break;
             case sScreenRecordingRequestCode:
                 if (resultCode == RESULT_OK) {
                     launchOverlay(data);
                 } else {
                     finishWithMessage(R.string.error_permission_screen_capture);
                 }
+                break;
         }
-
     }
 
     // ========================================== //
@@ -73,6 +74,7 @@ public class MainActivity extends Activity {
 
     private void launchOverlay(@NonNull Intent screenCastData) {
         Intent toOverlayService = new Intent(this, OverlayService.class);
+        toOverlayService.setAction(OverlayService.INTENT_ACTION_START_OVERLAY);
         toOverlayService.putExtra(OverlayService.INTENT_KEY_SCREENCAST_DATA, screenCastData);
         startService(toOverlayService);
         finish();

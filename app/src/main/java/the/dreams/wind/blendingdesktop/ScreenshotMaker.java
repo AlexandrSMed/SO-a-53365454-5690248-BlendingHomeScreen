@@ -25,7 +25,8 @@ import static android.content.Context.MEDIA_PROJECTION_SERVICE;
  * Before using the class actions ensure that all required permissions are set
  * @see <a href="https://stackoverflow.com/a/34549690/5690248">Stack answer</a>
  */
-class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnImageAvailableListener {
+class ScreenshotMaker extends MediaProjection.Callback
+        implements ImageReader.OnImageAvailableListener {
     interface Callback {
         void onScreenshotTaken(Bitmap bitmap);
     }
@@ -48,6 +49,7 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
                 (MediaProjectionManager) appContext.getSystemService(MEDIA_PROJECTION_SERVICE);
         mMediaProjection = Objects.requireNonNull(mediaProjectionManager)
                 .getMediaProjection(Activity.RESULT_OK, screenCastData);
+        mMediaProjection.registerCallback(this, null);
 
         final WindowManager windowManager =
                 (WindowManager) appContext.getSystemService(Context.WINDOW_SERVICE);
@@ -72,13 +74,19 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
         mPendingCallback = callback;
     }
 
+    void release() {
+        mMediaProjection.stop();
+        mMediaProjection.unregisterCallback(this);
+    }
+
     // ========================================== //
-    // VirtualDisplay.Callback
+    // MediaProjection.Callback
     // ========================================== //
 
+
     @Override
-    public void onStopped() {
-        super.onStopped();
+    public void onStop() {
+        super.onStop();
         releaseVirtualDisplay();
     }
 
@@ -88,7 +96,6 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
 
     @Override
     public void onImageAvailable(ImageReader reader) {
-        mMediaProjection.stop();
         if (mPendingCallback == null) {
             return;
         }
@@ -118,7 +125,13 @@ class ScreenshotMaker extends VirtualDisplay.Callback implements ImageReader.OnI
         mVirtualDisplay = mMediaProjection.createVirtualDisplay(sVirtualDisplayName,
                 mImageReader.getWidth(), mImageReader.getHeight(), mScreenDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, mImageReader.getSurface(),
-                this, null);
+                new VirtualDisplay.Callback() {
+                    @Override
+                    public void onStopped() {
+                        super.onStopped();
+                        releaseVirtualDisplay();
+                    }
+                }, null);
     }
 
     private void releaseVirtualDisplay() {
