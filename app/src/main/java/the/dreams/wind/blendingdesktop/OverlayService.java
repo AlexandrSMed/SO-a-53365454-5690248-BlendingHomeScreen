@@ -6,15 +6,18 @@ import android.annotation.TargetApi;
 import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Matrix;
 import android.graphics.PixelFormat;
 import android.graphics.PorterDuff;
 import android.graphics.Rect;
+import android.graphics.drawable.Icon;
 import android.media.projection.MediaProjectionManager;
 import android.os.Build;
 import android.os.Handler;
@@ -27,12 +30,14 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 import android.widget.ImageView;
 
 import java.util.Objects;
+import java.util.Random;
 
 import static android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH;
 
 public class OverlayService extends Service implements ScreenshotMaker.Callback,
         View.OnTouchListener {
     final static String INTENT_ACTION_START_OVERLAY = "INTENT_ACTION_START_OVERLAY";
+    final static String INTENT_ACTION_STOP = "INTENT_ACTION_STOP";
     final static String INTENT_KEY_SCREEN_CAST_DATA = "INTENT_KEY_SCREEN_CAST_DATA";
 
     private final static int sNotificationId = 0xFFFF;
@@ -40,6 +45,7 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
     private final static int sRestartDelay = 1024;
     private final static int sIdleTimeout = (int) (1024 * 1.5f);
     private final static int sFadeInOutDuration = 512;
+    private final Random mRandom = new Random();
 
     private ScreenshotMaker mScreenshotMaker;
     private OverlayImageView mImageView;
@@ -67,8 +73,15 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
         MediaProjectionManager projectionManager =
                 (MediaProjectionManager) getSystemService(Context.MEDIA_PROJECTION_SERVICE);
         Objects.requireNonNull(projectionManager).createScreenCaptureIntent();
+        final int smallIconRes = R.drawable.ic_notification_foreground_service;
+        final Bitmap largeIcon = BitmapFactory.decodeResource(getResources(),
+                R.mipmap.ic_launcher_round);
         Notification mNotification = makeNotificationBuilder()
-                .setTicker(getText(R.string.notification_ticker))
+                .setContentTitle(getText(R.string.app_name))
+                .setContentText(getText(R.string.notification_ticker))
+                .setSmallIcon(smallIconRes)
+                .setLargeIcon(largeIcon)
+                .addAction(makeStopServiceAction())
                 .build();
         startForeground(sNotificationId, mNotification);
     }
@@ -80,6 +93,9 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
             Intent screenCastData = intent.getParcelableExtra(INTENT_KEY_SCREEN_CAST_DATA);
             mScreenshotMaker = new ScreenshotMaker(this, screenCastData);
             mScreenshotMaker.takeScreenshot(this);
+        } else if (INTENT_ACTION_STOP.equals(intent.getAction())) {
+            stopForeground(true);
+            stopSelf();
         }
         return super.onStartCommand(intent, flags, startId);
     }
@@ -93,6 +109,13 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         restartOverlay();
+        mScreenshotMaker.release();
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+        mWindowManager.removeView(mImageView);
         mScreenshotMaker.release();
     }
 
@@ -128,6 +151,20 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
     // ========================================== //
     // Private
     // ========================================== //
+
+    private Notification.Action makeStopServiceAction() {
+        Intent stopService = new Intent(getApplicationContext(), OverlayService.class);
+        stopService.setAction(INTENT_ACTION_STOP);
+        PendingIntent pendingIntent = PendingIntent.getService(getApplicationContext(), 0, stopService, 0);
+        CharSequence actionTitle = getText(R.string.notification_action_stop);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Icon icon = Icon.createWithResource(this, R.mipmap.ic_launcher);
+            return new Notification.Action.Builder(icon, actionTitle, pendingIntent).build();
+        } else {
+            //noinspection deprecation
+            return new Notification.Action(R.mipmap.ic_launcher, actionTitle, pendingIntent);
+        }
+    }
 
     private void restartIdleState() {
         if (mIdleHandler == null) {
@@ -232,19 +269,32 @@ public class OverlayService extends Service implements ScreenshotMaker.Callback,
             mWindowManager.removeView(mImageView);
         }
         mImageView = new OverlayImageView(this);
-        mImageView.setOverlayPorterDuffMode(PorterDuff.Mode.MULTIPLY);
+
         mImageView.setScaleType(ImageView.ScaleType.CENTER_CROP);
         mImageView.setPadding(0,0,0,0);
-        mImageView.setOverlayColor(0xAAF5961B);
+
         mImageView.setAlpha(0f);
         mImageView.setOnTouchListener(this);
         mImageView.setVisibility(View.INVISIBLE);
         mWindowManager.addView(mImageView, mOverlayLayoutParams);
     }
 
+    private final static PorterDuff.Mode[] sPorterDuffEffectiveModes = new PorterDuff.Mode[] {
+            PorterDuff.Mode.MULTIPLY, PorterDuff.Mode.ADD, PorterDuff.Mode.XOR, PorterDuff.Mode.SRC
+    };
+
     private void fadeOverlay(boolean in, Animator.AnimatorListener animatorListener) {
         if (mOverlayAnimator != null) {
             mOverlayAnimator.cancel();
+        }
+        if (in) {
+            final int color = mRandom.nextInt(0xFFFFFF + 1);
+            // alpha is between 30 and 70 % (from 76 to 178)
+            final int alpha = mRandom.nextInt(103) + 76 << 24;
+            final int argbColor = alpha | color;
+            mImageView.setOverlayColor(argbColor);
+            final int nextPorterDuffIndex = mRandom.nextInt(sPorterDuffEffectiveModes.length);
+            mImageView.setOverlayPorterDuffMode(sPorterDuffEffectiveModes[nextPorterDuffIndex]);
         }
         mOverlayAnimator = mImageView.animate().alpha(in ? 1.0f : 0f)
                 .setDuration(sFadeInOutDuration)
