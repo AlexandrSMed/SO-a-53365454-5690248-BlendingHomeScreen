@@ -13,5 +13,6 @@ This is a demo application showing possible solutions for how you can achieve bl
 <img src="https://raw.githubusercontent.com/AlexandrSMed/stack-35590953/master/readmeAssets/XOR.png" width="256" alt="XOR">
 
 ## Recording
-The overal program cosists of a foreground service that adds overlay-like view at the system-alert level. Here is quick demo:
+The overal program cosists of a foreground service that adds overlay-like view at the system-alert level. Here is a small demo:
+
 <img src="https://raw.githubusercontent.com/AlexandrSMed/stack-35590953/master/readmeAssets/video.gif" width="256" alt="recording">
