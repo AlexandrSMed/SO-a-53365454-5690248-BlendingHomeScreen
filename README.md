@@ -1,7 +1,3 @@
-# stack-35590953
-Accompanying repository targeted elaborate answer for the stack-overflow question https://stackoverflow.com/questions/35590953
-
----
 # Description
 This is a demo application showing possible solutions for how you can achieve blending effect of a colored overlay with the Android device Homescreen. It applies a random color overlay and one of 4 [Purter-Duff](http://ssp.impulsetrain.com/porterduff.html) effects whenever a new touch event happens:
 ## [SRC](https://developer.android.com/reference/android/graphics/PorterDuff.Mode#SRC)
